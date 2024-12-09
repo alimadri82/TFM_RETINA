@@ -21,4 +21,5 @@ pip install -r requirements.txt
 ```
 python3 retina.py
 ```
-(en caso que se quiera reentrenar el modelo, habría que lanzar train.py y crear el directorio de imágenes con las imágenes de training que se encuentran en https://www.kaggle.com/datasets/andrewmvd/retinal-disease-classification/data )
+(en caso que se quiera reentrenar el modelo, habría que lanzar train.py y crear el directorio de imágenes (img/Training_Set/Training_Set
+/Training) con las imágenes de training que se encuentran en https://www.kaggle.com/datasets/andrewmvd/retinal-disease-classification/data )
