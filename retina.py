@@ -20,7 +20,7 @@ class RetinaClassificationForm(BoxLayout):
         Window.clearcolor = (239 / 255, 244 / 255, 249 / 255, 1)
 
         # Cargar el modelo entrenado 
-        self.model = load_model('modeloretinaentrenado.keras')
+        self.model = load_model('modeloretinaentrenado_balanceado.keras')
 
         # Cargar el modelo preentrenado para extracción de características
         self.base_model = ResNet50(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
@@ -91,6 +91,8 @@ class RetinaClassificationForm(BoxLayout):
     def on_filechooser_dismiss(self, filechooser, popup):
         if filechooser.selection:
             self.ruta_input.text = filechooser.selection[0]
+            self.result_image.source = ''
+            self.result_image.reload()
         popup.dismiss()
 
     def preprocess_image(self, image_path): 
