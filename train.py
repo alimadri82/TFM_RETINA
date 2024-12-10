@@ -13,14 +13,16 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.utils.class_weight import compute_class_weight
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
-#Cargamos y procesamos las imágenes
+# Cargamos y procesamos las imágenes
 # Ruta a las imágenes y al archivo CSV
 image_dir = 'img/Training_Set/Training_Set/Training'  # Ajuste en la ruta de Windows a Unix-like
 csv_file = 'img/Training_Set/Training_Set/RFMiD_Training_Labels.csv'
-
+#image_dir = 'ALI/Training_Set'
+#csv_file = 'ALI/Training_Set/RFMiD_Training_Labels.csv'
 image_names = [f for f in os.listdir(image_dir) if f.endswith('.png')]
 
 # Cargar el archivo CSV
@@ -53,7 +55,6 @@ datagen = ImageDataGenerator(
     height_shift_range=0.2,
     horizontal_flip=True
 )
-
 datagen.fit(images)
 
 # Escalar los datos
@@ -68,7 +69,6 @@ images_pca = pca.fit_transform(images_scaled)
 X_train, X_temp, y_train, y_temp = train_test_split(images, labels, test_size=0.3, random_state=42)
 X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
 
-
 # Modelo preentrenado para extracción de características
 base_model = ResNet50(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
 base_model.trainable = True
@@ -86,23 +86,12 @@ combined_features = np.concatenate((features_flattened, images_pca), axis=1)
 X_train_combined, X_temp_combined, y_train_combined, y_temp_combined = train_test_split(combined_features, labels, test_size=0.3, random_state=42)
 X_val_combined, X_test_combined, y_val_combined, y_test_combined = train_test_split(X_temp_combined, y_temp_combined, test_size=0.5, random_state=42)
 
-# Modelo preentrenado para extracción de características
-base_model = ResNet50(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
-base_model.trainable = True
-for layer in base_model.layers[:-4]:  # Descongelar las últimas 4 capas
-    layer.trainable = False
+# Calcular pesos de las clases
+class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(labels), y=labels)
+class_weights_dict = dict(enumerate(class_weights))
 
-# Extraer características con el modelo preentrenado
-features = base_model.predict(images)
-
-# Aplanar las características extraídas y concatenar con características PCA
-features_flattened = features.reshape((features.shape[0], -1))
-combined_features = np.concatenate((features_flattened, images_pca), axis=1)
-
-# Dividir el dataset con las nuevas características
-X_train_combined, X_temp_combined, y_train_combined, y_temp_combined = train_test_split(combined_features, labels, test_size=0.3, random_state=42)
-X_val_combined, X_test_combined, y_val_combined, y_test_combined = train_test_split(X_temp_combined, y_temp_combined, test_size=0.5, random_state=42)
-
+# Mostrar los pesos calculados
+print("Pesos de las clases:", class_weights_dict)
 
 input_shape = combined_features.shape[1]
 model = Sequential([
@@ -114,10 +103,9 @@ model = Sequential([
 
 model.compile(optimizer=tf.keras.optimizers.Adam(1e-5), loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
-
-# Entrenar el modelo
+# Entrenar el modelo con ajuste de pesos de clases
 early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
-history = model.fit(X_train_combined, y_train_combined, epochs=20, batch_size=32, validation_data=(X_val_combined, y_val_combined), callbacks=[early_stopping])
+history = model.fit(X_train_combined, y_train_combined, epochs=25, batch_size=32, validation_data=(X_val_combined, y_val_combined), callbacks=[early_stopping], class_weight=class_weights_dict)
 
 # Evaluar el modelo
 test_loss, test_acc = model.evaluate(X_test_combined, y_test_combined)
@@ -136,4 +124,4 @@ print("Reporte de Clasificación:")
 print(classification_report(y_test_combined, predicted_classes))
 
 # Guardar el modelo
-model.save('modeloretinaentrenado.keras')
+model.save('modeloretinaentrenado_balanceado.keras')
