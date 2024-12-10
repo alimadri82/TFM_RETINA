@@ -7,8 +7,8 @@ from kivy.uix.label import Label
 from kivy.uix.filechooser import FileChooserListView
 from kivy.uix.popup import Popup
 from kivy.core.window import Window
-from kivy.lang import Builder
 from tensorflow.keras.models import load_model
+from tensorflow.keras.applications import ResNet50
 import numpy as np
 import cv2
 
@@ -20,7 +20,10 @@ class RetinaClassificationForm(BoxLayout):
         Window.clearcolor = (239 / 255, 244 / 255, 249 / 255, 1)
 
         # Cargar el modelo entrenado 
-        self.model = load_model('modeloretinaentrenado.h5')
+        self.model = load_model('modeloretinaentrenado.keras')
+
+        # Cargar el modelo preentrenado para extracción de características
+        self.base_model = ResNet50(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
 
         # Título arriba del todo
         self.title_label = Label(text='Proyecto de clasificación de retina', color=(0, 0, 0, 1), font_size='30sp', halign='left', valign='middle', pos_hint={'x': 0.1, 'top': 1}, height=50) 
@@ -91,15 +94,23 @@ class RetinaClassificationForm(BoxLayout):
         popup.dismiss()
 
     def preprocess_image(self, image_path): 
-        image = cv2.imread(image_path) 
-        image = cv2.resize(image, (224, 224)) # Redimensionar a 224x224 píxeles 
-        image = image / 255.0 # Normalizar 
-        image = np.expand_dims(image, axis=0) # Añadir una dimensión para el batch 
-        return image 
+        image = cv2.imread(image_path)
+        image = cv2.resize(image, (224, 224))  # Redimensiono a 224x224 píxeles
+        image = image / 255.0  # Normalizo
+        image = np.expand_dims(image, axis=0)  # Añadir dimensión para batch
+        return image
+    
+    def extract_features(self, image): 
+        features = self.base_model.predict(image) 
+        features_flattened = features.reshape((features.shape[0], -1))
+        return features_flattened
     
     def predict(self, image_path): 
         image = self.preprocess_image(image_path) 
-        prediction = self.model.predict(image) 
+        features = self.extract_features(image)
+        # Ajustar la forma de las características extraídas
+        features = np.pad(features, ((0, 0), (0, 100452 - features.shape[1])), 'constant')
+        prediction = self.model.predict(features) 
         predicted_class = np.argmax(prediction, axis=1) 
         return predicted_class
     
@@ -107,7 +118,12 @@ class RetinaClassificationForm(BoxLayout):
         if self.ruta_input.text: 
             prediction = self.predict(self.ruta_input.text) 
             result = f"Clase predicha: {prediction[0]}"
-            self.result_label.text = f"Resultado: {result}" 
+            #self.result_label.text = f"Resultado: {result}" 
+            if prediction[0] == 1: 
+                self.result_image.source = 'resKO.png' 
+            else: 
+                self.result_image.source = 'resOK.png' 
+            self.result_image.reload()
             print(f'Ruta seleccionada: {self.ruta_input.text}') 
             print(f'Resultado: {result}') 
         else: 
